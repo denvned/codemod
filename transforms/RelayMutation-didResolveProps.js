@@ -85,7 +85,7 @@ module.exports = (file, api, options) => {
 
   let didTransform = false;
 
-  const relayDecl = getRequireCall(root, ['relay', 'Relay']);
+  const relayDecl = getRequireCall(root, ['react-relay', 'Relay']);
   if (relayDecl) {
     didTransform = transformMutations({
       type: 'MemberExpression',
