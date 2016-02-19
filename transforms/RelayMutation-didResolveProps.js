@@ -1,72 +1,13 @@
+import {init, equalTo, getRequireCall} from '../utils';
+
+const NEW_METHOD_NAME = 'didReceiveProps';
+
 module.exports = (file, api, options) => {
+  init(api);
+
   const j = api.jscodeshift;
   const printOptions = options.printOptions || {quote: 'single'};
   const root = j(file.source);
-
-  function equalTo(right) {
-    return left => j.types.astNodesAreEquivalent(left, right);
-  }
-
-  function getRequireCall(path, moduleName) {
-    const call = path
-      .findVariableDeclarators()
-      .filter(j.filters.VariableDeclarator.requiresModule(moduleName));
-    return call.size() == 1 ? call.get() : null;
-  }
-
-  j.registerMethods({
-    findIdentifier(name) {
-      return this.find(j.Identifier, {name});
-    },
-  });
-
-  const COMPUTABLES = [
-    { type: j.ClassProperty,    fieldName: 'key' },
-    { type: j.MemberExpression, fieldName: 'property' },
-    { type: j.MethodDefinition, fieldName: 'key' },
-    { type: j.Property,         fieldName: 'key' },
-    { type: j.PropertyPattern,  fieldName: 'key' },
-  ];
-
-  j.registerMethods({
-    findVariableReference(name) {
-      function isNodeFieldSupportType(node, fieldName, type) {
-        function getNodeTypeDef() {
-          const typeDef = j.types.Type.def(node.type);
-          if (!typeDef.finalized) {
-            throw new Error(`Type '${node.type}' is not finalized.`);
-          }
-
-          return typeDef;
-        }
-
-        function getNodeFieldType() {
-          return getNodeTypeDef().allFields[fieldName].type;
-        }
-
-        return getNodeFieldType().check({ type });
-      }
-
-      function isVariableReference(path) {
-        const parent = path.parent.node;
-        const fieldName = path.name;
-
-        if (!isNodeFieldSupportType(parent, fieldName, 'Expression')) {
-          return false;
-        }
-
-        for (const computable of COMPUTABLES) {
-          if (computable.type.check(parent)) {
-            return fieldName !== computable.fieldName || parent.computed;
-          }
-        }
-
-        return true;
-      }
-
-      return this.findIdentifier(name).filter(isVariableReference);
-    },
-  });
 
   function transformMutations(superClass) {
     function isMutationConstructor(path) {
@@ -84,7 +25,7 @@ module.exports = (file, api, options) => {
 
       const params = func.get('params').value;
       if (params.length !== 1 || params[0].type !== 'Identifier') {
-        reportSkipped(`the constructor does not take an identifier as the only argument.`);
+        reportSkipped('the constructor does not take an identifier as the only argument.');
         return false;
       }
 
@@ -114,13 +55,13 @@ module.exports = (file, api, options) => {
       const propsParamHasMoreReferences =
         !!j(otherStatements).findVariableReference(propsParamName).size();
       if (propsParamHasMoreReferences) {
-        reportSkipped(`the argument of the constructor is used outside the call to \`super\`.`);
+        reportSkipped('the argument of the constructor is used outside the call to `super`.');
         return false;
       }
 
       const usesArgumentsObject = !!j(statements).findVariableReference('arguments').size();
       if (usesArgumentsObject) {
-        reportSkipped(`\`arguments\` object is used in the constructor.`);
+        reportSkipped('`arguments` object is used in the constructor.');
         return false;
       }
 
@@ -129,7 +70,7 @@ module.exports = (file, api, options) => {
 
     function transformToDidReceiveProps(path) {
       path.get('kind').replace('method');
-      path.get('key', 'name').replace('didReceiveProps');
+      path.get('key', 'name').replace(NEW_METHOD_NAME);
       path.get('value', 'params', 0).prune();
       path.get('value', 'body', 'body', 0).prune();
     }
